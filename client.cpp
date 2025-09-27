@@ -20,6 +20,7 @@ int main (int argc, char *argv[]) {
 	int opt;
 	int p = 1;
 	double t = 0.0;
+	bool c = false;
 	int e = 1;
 
 	/** 4.1 Run the server as a child process */
@@ -28,10 +29,11 @@ int main (int argc, char *argv[]) {
 		execvp("./server", args);
 		
 		cout << "uhhhh something went wrong!" << endl;
+		return 1;
 	}
 
 	string filename = "1.csv";
-	while ((opt = getopt(argc, argv, "p:t:e:f:")) != -1) {
+	while ((opt = getopt(argc, argv, "p:t:e:f:c")) != -1) {
 		switch (opt) {
 			case 'p':
 				p = atoi (optarg);
@@ -45,19 +47,39 @@ int main (int argc, char *argv[]) {
 			case 'f':
 				filename = optarg;
 				break;
+			case 'c':
+				c = true;
+				break;
 		}
 	}
 
     FIFORequestChannel chan("control", FIFORequestChannel::CLIENT_SIDE);
-	
+	FIFORequestChannel *active_chan = &chan;
+
+	/** 3.4 New Channel Creation Request */
+	if (c) {
+		char buf[MAX_MESSAGE];
+		MESSAGE_TYPE mtype = NEWCHANNEL_MSG;
+		memcpy(buf, &mtype, sizeof(MESSAGE_TYPE));
+		chan.cwrite(buf, sizeof(MESSAGE_TYPE));
+		
+		char buf2[30];
+		chan.cread(buf2, 30);
+
+		string new_channel_name(buf2);
+
+		FIFORequestChannel* new_chan = new FIFORequestChannel(new_channel_name, FIFORequestChannel::CLIENT_SIDE);
+		active_chan = new_chan;
+	}
+
 	/** 4.2 Requesting Data Points */
     char buf[MAX_MESSAGE];
 	datamsg x(p, t, e);
 
 	memcpy(buf, &x, sizeof(datamsg));
-	chan.cwrite(buf, sizeof(datamsg)); // question
+	active_chan->cwrite(buf, sizeof(datamsg)); // question
 	double reply;
-	chan.cread(&reply, sizeof(double)); //answer
+	active_chan->cread(&reply, sizeof(double)); //answer
 	cout << "For person " << p << ", at time " << t << ", the value of ecg " << e << " is " << reply << endl;
 	
 	string outfile = "received/x" + to_string(p) + ".csv";
@@ -76,17 +98,17 @@ int main (int argc, char *argv[]) {
 		datamsg x1(p, time, 1);
 
 		memcpy(buf_ecg1, &x1, sizeof(datamsg));
-		chan.cwrite(buf_ecg1, sizeof(datamsg)); 
+		active_chan->cwrite(buf_ecg1, sizeof(datamsg)); 
 		double val1;
-		chan.cread(&val1, sizeof(double)); 
+		active_chan->cread(&val1, sizeof(double)); 
 
 		// Data point for ecg 2:
 		datamsg x2(p, time, 2);
 
 		memcpy(buf_ecg2, &x2, sizeof(datamsg));
-		chan.cwrite(buf_ecg2, sizeof(datamsg)); 
+		active_chan->cwrite(buf_ecg2, sizeof(datamsg)); 
 		double val2;
-		chan.cread(&val2, sizeof(double)); 
+		active_chan->cread(&val2, sizeof(double)); 
 
 		ofs << time << "," << val1 << "," << val2 << endl;
 	}
@@ -103,10 +125,10 @@ int main (int argc, char *argv[]) {
 	memcpy(buf2, &fm, sizeof(filemsg));
 	strcpy(buf2 + sizeof(filemsg), filename.c_str());
 	
-	chan.cwrite(buf2, len);  // I want the file length;
+	active_chan->cwrite(buf2, len);  // I want the file length;
 
 	__int64_t filelen;
-	chan.cread(&filelen, sizeof(__int64_t));
+	active_chan->cread(&filelen, sizeof(__int64_t));
 	
 	cout << "File " << filename << " has length: " << filelen << " bytes" << endl;
 	delete[] buf2;
@@ -133,10 +155,10 @@ int main (int argc, char *argv[]) {
 		memcpy(buf3, &fm, sizeof(filemsg));
 		strcpy(buf3+sizeof(filemsg), filename.c_str());
 
-		chan.cwrite(buf3, len); // request
+		active_chan->cwrite(buf3, len); // request
 		
 		char* buf4 = new char[length];
-		chan.cread(buf4, length); // response
+		active_chan->cread(buf4, length); // response
 
 		// Write buffer to new file
 		ofs2.write(buf4, length);
@@ -149,5 +171,10 @@ int main (int argc, char *argv[]) {
 	
 	// closing the channel    
     MESSAGE_TYPE m = QUIT_MSG;
-    chan.cwrite(&m, sizeof(MESSAGE_TYPE));
+	cout << "Closing Channel: " << active_chan->name() << endl;
+    active_chan->cwrite(&m, sizeof(MESSAGE_TYPE));
+	
+	if (c) {
+		delete active_chan;
+	}
 }
