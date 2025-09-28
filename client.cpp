@@ -18,8 +18,8 @@ using namespace std;
 
 int main (int argc, char *argv[]) {
 	int opt;
-	int p = 1;
-	double t = 0.0;
+	int p = -1;
+	double t = -1;
 	bool c = false;
 	int e = 1;
 
@@ -32,7 +32,7 @@ int main (int argc, char *argv[]) {
 		return 1;
 	}
 
-	string filename = "1.csv";
+	string filename = "";
 	while ((opt = getopt(argc, argv, "p:t:e:f:c")) != -1) {
 		switch (opt) {
 			case 'p':
@@ -73,101 +73,106 @@ int main (int argc, char *argv[]) {
 	}
 
 	/** 4.2 Requesting Data Points */
-    char buf[MAX_MESSAGE];
-	datamsg x(p, t, e);
+	if (p >= 0 && t >= 0) {
+		char buf[MAX_MESSAGE];
+		datamsg x(p, t, e);
 
-	memcpy(buf, &x, sizeof(datamsg));
-	active_chan->cwrite(buf, sizeof(datamsg)); // question
-	double reply;
-	active_chan->cread(&reply, sizeof(double)); //answer
-	cout << "For person " << p << ", at time " << t << ", the value of ecg " << e << " is " << reply << endl;
+		memcpy(buf, &x, sizeof(datamsg));
+		active_chan->cwrite(buf, sizeof(datamsg)); // question
+		double reply;
+		active_chan->cread(&reply, sizeof(double)); //answer
+		cout << "For person " << p << ", at time " << t << ", the value of ecg " << e << " is " << reply << endl;
+	} else if (p >= 0) {
+		string outfile = "received/x" + to_string(p) + ".csv";
+		ofstream ofs(outfile.c_str());
+		if (!ofs.is_open()) {
+			cout << "Uh oh!!!" << endl;
+		}
+
+		// Obtain the first 1000 data points
+		for (double i = 0; i < 1000; i++) {
+			double time = i * 0.004;
+			char buf_ecg1[MAX_MESSAGE];
+			char buf_ecg2[MAX_MESSAGE];
+
+			// Data point for ecg 1:
+			datamsg x1(p, time, 1);
+
+			memcpy(buf_ecg1, &x1, sizeof(datamsg));
+			active_chan->cwrite(buf_ecg1, sizeof(datamsg)); 
+			double val1;
+			active_chan->cread(&val1, sizeof(double)); 
+
+			// Data point for ecg 2:
+			datamsg x2(p, time, 2);
+
+			memcpy(buf_ecg2, &x2, sizeof(datamsg));
+			active_chan->cwrite(buf_ecg2, sizeof(datamsg)); 
+			double val2;
+			active_chan->cread(&val2, sizeof(double)); 
+
+			ofs << time << "," << val1 << "," << val2 << endl;
+		}
+
+		ofs.close();
+	}
 	
-	string outfile = "received/x" + to_string(p) + ".csv";
-	ofstream ofs(outfile.c_str());
-	if (!ofs.is_open()) {
-		cout << "Uh oh!!!" << endl;
-	}
-
-	// Obtain the first 1000 data points
-	for (double i = 0; i < 1000; i++) {
-		double time = i * 0.004;
-		char buf_ecg1[MAX_MESSAGE];
-		char buf_ecg2[MAX_MESSAGE];
-
-		// Data point for ecg 1:
-		datamsg x1(p, time, 1);
-
-		memcpy(buf_ecg1, &x1, sizeof(datamsg));
-		active_chan->cwrite(buf_ecg1, sizeof(datamsg)); 
-		double val1;
-		active_chan->cread(&val1, sizeof(double)); 
-
-		// Data point for ecg 2:
-		datamsg x2(p, time, 2);
-
-		memcpy(buf_ecg2, &x2, sizeof(datamsg));
-		active_chan->cwrite(buf_ecg2, sizeof(datamsg)); 
-		double val2;
-		active_chan->cread(&val2, sizeof(double)); 
-
-		ofs << time << "," << val1 << "," << val2 << endl;
-	}
-
-	ofs.close();
 
 	/** 4.3 Requesting Files */
+	if (filename.length() > 0) {
+		// Obtain size of file
+		filemsg fm(0, 0);
+		int len = sizeof(filemsg) + (filename.size() + 1);
+		char* buf2 = new char[len];
 
-	// Obtain size of file
-	filemsg fm(0, 0);
-	int len = sizeof(filemsg) + (filename.size() + 1);
-	char* buf2 = new char[len];
-
-	memcpy(buf2, &fm, sizeof(filemsg));
-	strcpy(buf2 + sizeof(filemsg), filename.c_str());
-	
-	active_chan->cwrite(buf2, len);  // I want the file length;
-
-	__int64_t filelen;
-	active_chan->cread(&filelen, sizeof(__int64_t));
-	
-	cout << "File " << filename << " has length: " << filelen << " bytes" << endl;
-	delete[] buf2;
-
-	string outputfile = "received/" + filename;
-
-	ofstream ofs2(outputfile.c_str());
-	if (!ofs2.is_open()) {
-		cout << "Uh oh" << endl;
-	}
-
-	// Obtain contents of file
-	for (__int64_t offset = 0; offset < filelen; offset += MAX_MESSAGE) {
-		int length = MAX_MESSAGE;
-		if (offset + length > filelen) length = filelen - offset;
+		memcpy(buf2, &fm, sizeof(filemsg));
+		strcpy(buf2 + sizeof(filemsg), filename.c_str());
 		
-		// Create filemsg object
-		filemsg fm(offset, length);
+		active_chan->cwrite(buf2, len);  // I want the file length;
 
-		// Package in a buffer the filemsg + filename
-		int len = sizeof(filemsg) + filename.size() + 1;
-		char* buf3 = new char[len];
-
-		memcpy(buf3, &fm, sizeof(filemsg));
-		strcpy(buf3+sizeof(filemsg), filename.c_str());
-
-		active_chan->cwrite(buf3, len); // request
+		__int64_t filelen;
+		active_chan->cread(&filelen, sizeof(__int64_t));
 		
-		char* buf4 = new char[length];
-		active_chan->cread(buf4, length); // response
+		cout << "File " << filename << " has length: " << filelen << " bytes" << endl;
+		delete[] buf2;
 
-		// Write buffer to new file
-		ofs2.write(buf4, length);
+		string outputfile = "received/" + filename;
 
-		delete[] buf3;
-		delete[] buf4;
+		ofstream ofs2(outputfile.c_str());
+		if (!ofs2.is_open()) {
+			cout << "Uh oh" << endl;
+		}
+
+		// Obtain contents of file
+		for (__int64_t offset = 0; offset < filelen; offset += MAX_MESSAGE) {
+			int length = MAX_MESSAGE;
+			if (offset + length > filelen) length = filelen - offset;
+			
+			// Create filemsg object
+			filemsg fm(offset, length);
+
+			// Package in a buffer the filemsg + filename
+			int len = sizeof(filemsg) + filename.size() + 1;
+			char* buf3 = new char[len];
+
+			memcpy(buf3, &fm, sizeof(filemsg));
+			strcpy(buf3+sizeof(filemsg), filename.c_str());
+
+			active_chan->cwrite(buf3, len); // request
+			
+			char* buf4 = new char[length];
+			active_chan->cread(buf4, length); // response
+
+			// Write buffer to new file
+			ofs2.write(buf4, length);
+
+			delete[] buf3;
+			delete[] buf4;
+		}
+
+		ofs2.close();
 	}
-
-	ofs2.close();
+	
 	
 	// closing the channel    
     MESSAGE_TYPE m = QUIT_MSG;

@@ -1,1 +1,24 @@
-Hello World
+============================================================
+Filename                  Size       Time (s)   Status    
+------------------------------------------------------------
+15.csv                    270.5KB    0.315      SUCCESS   
+11.csv                    272.0KB    0.324      SUCCESS   
+5.csv                     275.7KB    0.326      SUCCESS   
+1.csv                     277.7KB    0.343      SUCCESS   
+14.csv                    278.1KB    0.323      SUCCESS   
+12.csv                    278.9KB    0.326      SUCCESS   
+9.csv                     279.1KB    0.321      SUCCESS   
+2.csv                     280.9KB    0.335      SUCCESS   
+13.csv                    281.7KB    0.395      SUCCESS   
+8.csv                     283.0KB    0.339      SUCCESS   
+7.csv                     283.1KB    0.324      SUCCESS   
+10.csv                    283.2KB    0.321      SUCCESS   
+3.csv                     283.3KB    0.326      SUCCESS   
+6.csv                     283.7KB    0.322      SUCCESS   
+4.csv                     284.2KB    0.332      SUCCESS   
+test-1mb.bin              1.0MB      0.540      SUCCESS   
+test-5mb.bin              5.0MB      1.769      SUCCESS   
+test-10mb.bin             10.0MB     3.943      SUCCESS   
+test-50mb.bin             50.0MB     13.158     SUCCESS   
+test-100mb.bin            95.4MB     21.707     SUCCESS   
+------------------------------------------------------------
