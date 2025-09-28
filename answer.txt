@@ -1,24 +1,71 @@
+Results of time analysis for transferring different sized files:
+
 ============================================================
 Filename                  Size       Time (s)   Status    
 ------------------------------------------------------------
-15.csv                    270.5KB    0.315      SUCCESS   
+15.csv                    270.5KB    0.447      SUCCESS   
 11.csv                    272.0KB    0.324      SUCCESS   
-5.csv                     275.7KB    0.326      SUCCESS   
-1.csv                     277.7KB    0.343      SUCCESS   
-14.csv                    278.1KB    0.323      SUCCESS   
-12.csv                    278.9KB    0.326      SUCCESS   
-9.csv                     279.1KB    0.321      SUCCESS   
-2.csv                     280.9KB    0.335      SUCCESS   
-13.csv                    281.7KB    0.395      SUCCESS   
-8.csv                     283.0KB    0.339      SUCCESS   
-7.csv                     283.1KB    0.324      SUCCESS   
-10.csv                    283.2KB    0.321      SUCCESS   
-3.csv                     283.3KB    0.326      SUCCESS   
-6.csv                     283.7KB    0.322      SUCCESS   
-4.csv                     284.2KB    0.332      SUCCESS   
-test-1mb.bin              1.0MB      0.540      SUCCESS   
-test-5mb.bin              5.0MB      1.769      SUCCESS   
-test-10mb.bin             10.0MB     3.943      SUCCESS   
-test-50mb.bin             50.0MB     13.158     SUCCESS   
-test-100mb.bin            95.4MB     21.707     SUCCESS   
+5.csv                     275.7KB    0.339      SUCCESS   
+1.csv                     277.7KB    0.368      SUCCESS   
+14.csv                    278.1KB    0.341      SUCCESS   
+12.csv                    278.9KB    0.412      SUCCESS   
+9.csv                     279.1KB    0.519      SUCCESS   
+2.csv                     280.9KB    0.518      SUCCESS   
+13.csv                    281.7KB    0.324      SUCCESS   
+8.csv                     283.0KB    0.328      SUCCESS   
+7.csv                     283.1KB    0.329      SUCCESS   
+10.csv                    283.2KB    0.344      SUCCESS   
+3.csv                     283.3KB    0.322      SUCCESS   
+6.csv                     283.7KB    0.328      SUCCESS   
+4.csv                     284.2KB    0.323      SUCCESS   
+test-1mb.bin              1.0MB      0.513      SUCCESS   
+test-5mb.bin              5.0MB      2.252      SUCCESS   
+test-10mb.bin             10.0MB     3.945      SUCCESS   
+test-25mb.bin             25.0MB     7.055      SUCCESS   
+test-50mb.bin             50.0MB     11.115     SUCCESS   
+test-75mb.bin             75.0MB     16.083     SUCCESS   
+test-100mb.bin            95.4MB     19.432     SUCCESS   
 ------------------------------------------------------------
+
+The results of the analysis show a clear linear relationship between file size and 
+transfer time. This is consistent with the expected behavior of our file transfer system.
+
+The primary bottleneck in performance is the buffer size used for communication between the client 
+and server. When files exceed the buffer capacity, they must be transfered in multiple chunks.
+This explains the linear relationship, as the number of required chunks grows proportionally to 
+the size of the file. 
+
+Increasing the buffer size would reduce the number of required requests and therefore
+improve performance for the file transfers.
+
+To demonstrate this, I ran the analysis again but with a buffer size of 512 instead of 256:
+
+============================================================
+Filename                  Size       Time (s)   Status    
+------------------------------------------------------------
+15.csv                    270.5KB    0.279      SUCCESS   
+11.csv                    272.0KB    0.306      SUCCESS   
+5.csv                     275.7KB    0.288      SUCCESS   
+1.csv                     277.7KB    0.284      SUCCESS   
+14.csv                    278.1KB    0.293      SUCCESS   
+12.csv                    278.9KB    0.313      SUCCESS   
+9.csv                     279.1KB    0.286      SUCCESS   
+2.csv                     280.9KB    0.283      SUCCESS   
+13.csv                    281.7KB    0.294      SUCCESS   
+8.csv                     283.0KB    0.286      SUCCESS   
+7.csv                     283.1KB    0.286      SUCCESS   
+10.csv                    283.2KB    0.284      SUCCESS   
+3.csv                     283.3KB    0.286      SUCCESS   
+6.csv                     283.7KB    0.285      SUCCESS   
+4.csv                     284.2KB    0.286      SUCCESS   
+test-1mb.bin              1.0MB      0.393      SUCCESS   
+test-5mb.bin              5.0MB      0.892      SUCCESS   
+test-10mb.bin             10.0MB     1.565      SUCCESS   
+test-25mb.bin             25.0MB     3.617      SUCCESS   
+test-50mb.bin             50.0MB     6.463      SUCCESS   
+test-75mb.bin             75.0MB     8.870      SUCCESS   
+test-100mb.bin            95.4MB     11.015     SUCCESS   
+------------------------------------------------------------
+
+As you can see, the time to transfer the files has roughly halved, which is what we expect to
+see from a linear relationship between file size and transfer time.

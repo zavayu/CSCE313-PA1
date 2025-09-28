@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Performance analysis script for measuring execution time of ./client -f {filename}
+Performance analysis script for measuring execution time of ./client -f {filename} [-m {value}]
 """
 
 import subprocess
@@ -11,6 +11,7 @@ import glob
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
+import argparse
 
 def measure_execution_time(command):
     """
@@ -136,7 +137,7 @@ def create_performance_plot(results, output_filename="performance_plot.png"):
         avg_throughput = sum(throughputs) / len(throughputs)
         print(f"  Average throughput: {avg_throughput:.2f} MB/s")
 
-def run_performance_analysis():
+def run_performance_analysis(m_value=None):
     """Run performance analysis on various test files"""
     
     # Check if client executable exists
@@ -163,7 +164,12 @@ def run_performance_analysis():
         print("No test files found in BIMDC directory")
         return
     
-    print("Performance Analysis: ./client -f {filename}")
+    # Prepare command description for output
+    cmd_desc = "./client -f {filename}"
+    if m_value is not None:
+        cmd_desc += f" -m {m_value}"
+    
+    print(f"Performance Analysis: {cmd_desc}")
     print("=" * 60)
     print(f"{'Filename':<25} {'Size':<10} {'Time (s)':<10} {'Status':<10}")
     print("-" * 60)
@@ -177,6 +183,8 @@ def run_performance_analysis():
         
         # Run the command (client expects just the filename, server adds BIMDC/ prefix)
         command = [client_path, "-f", test_file]
+        if m_value is not None:
+            command.extend(["-m", str(m_value)])
         exec_time, return_code, stdout, stderr = measure_execution_time(command)
         
         # Determine status
@@ -243,7 +251,7 @@ def run_performance_analysis():
     
     return results
 
-def run_single_file_test(filename, iterations=1):
+def test_single_file(filename, iterations=1, m_value=None):
     """Run test on a single file multiple times"""
     
     client_path = "./client"
@@ -275,6 +283,8 @@ def run_single_file_test(filename, iterations=1):
     
     for i in range(iterations):
         command = [client_path, "-f", client_filename]
+        if m_value is not None:
+            command.extend(["-m", str(m_value)])
         exec_time, return_code, stdout, stderr = measure_execution_time(command)
         
         if return_code == 0:
@@ -299,29 +309,33 @@ def run_single_file_test(filename, iterations=1):
 def main():
     """Main function with command line argument handling"""
     
-    if len(sys.argv) == 1:
-        # No arguments - run full analysis
-        run_performance_analysis()
+    parser = argparse.ArgumentParser(
+        description='Performance analysis script for ./client',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''Examples:
+  python3 analysis.py                     # Run full analysis on all files
+  python3 analysis.py -m 256              # Run full analysis with -m 256
+  python3 analysis.py -f test.bin         # Test single file once
+  python3 analysis.py -f test.bin -i 5    # Test single file 5 times
+  python3 analysis.py -f test.bin -m 512  # Test single file with -m 512
+        '''
+    )
     
-    elif len(sys.argv) == 2:
-        # Single file test
-        filename = sys.argv[1]
-        run_single_file_test(filename)
+    parser.add_argument('-m', '--buffer-size', type=int, metavar='VALUE',
+                        help='Buffer size value to pass to client with -m flag')
+    parser.add_argument('-f', '--file', type=str, metavar='FILENAME',
+                        help='Test a single file instead of running full analysis')
+    parser.add_argument('-i', '--iterations', type=int, default=1, metavar='N',
+                        help='Number of iterations for single file testing (default: 1)')
     
-    elif len(sys.argv) == 3:
-        # Single file test with iterations
-        filename = sys.argv[1]
-        try:
-            iterations = int(sys.argv[2])
-            run_single_file_test(filename, iterations)
-        except ValueError:
-            print("Error: Second argument must be a number (iterations)")
+    args = parser.parse_args()
     
+    if args.file:
+        # Test single file
+        test_single_file(args.file, args.iterations, args.buffer_size)
     else:
-        print("Usage:")
-        print("  python3 analysis.py                    # Run full analysis on all files")
-        print("  python3 analysis.py <filename>         # Test single file once")
-        print("  python3 analysis.py <filename> <iter>  # Test single file multiple times")
+        # Run full analysis
+        run_performance_analysis(args.buffer_size)
 
 if __name__ == "__main__":
     main()

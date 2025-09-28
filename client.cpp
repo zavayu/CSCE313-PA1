@@ -22,18 +22,10 @@ int main (int argc, char *argv[]) {
 	double t = -1;
 	bool c = false;
 	int e = 1;
-
-	/** 4.1 Run the server as a child process */
-	if (fork() == 0) {
-		char* args[] = {NULL};
-		execvp("./server", args);
-		
-		cout << "uhhhh something went wrong!" << endl;
-		return 1;
-	}
-
 	string filename = "";
-	while ((opt = getopt(argc, argv, "p:t:e:f:c")) != -1) {
+	int buffercapacity = MAX_MESSAGE;
+
+	while ((opt = getopt(argc, argv, "p:t:e:f:m:c")) != -1) {
 		switch (opt) {
 			case 'p':
 				p = atoi (optarg);
@@ -50,7 +42,20 @@ int main (int argc, char *argv[]) {
 			case 'c':
 				c = true;
 				break;
+			case 'm':
+				buffercapacity = atoi (optarg);
+				break;
 		}
+	}
+
+	/** 4.1 Run the server as a child process */
+	if (fork() == 0) {
+		string buffer_str = to_string(buffercapacity);
+		const char* args[] = {"./server", "-m", buffer_str.c_str(), NULL};
+		execvp(args[0], const_cast<char* const*>(args));
+		
+		cout << "The server child process failed to execute" << endl;
+		return 1;
 	}
 
     FIFORequestChannel chan("control", FIFORequestChannel::CLIENT_SIDE);
@@ -58,7 +63,7 @@ int main (int argc, char *argv[]) {
 
 	/** 3.4 New Channel Creation Request */
 	if (c) {
-		char buf[MAX_MESSAGE];
+		char* buf = new char[buffercapacity];
 		MESSAGE_TYPE mtype = NEWCHANNEL_MSG;
 		memcpy(buf, &mtype, sizeof(MESSAGE_TYPE));
 		chan.cwrite(buf, sizeof(MESSAGE_TYPE));
@@ -70,11 +75,12 @@ int main (int argc, char *argv[]) {
 
 		FIFORequestChannel* new_chan = new FIFORequestChannel(new_channel_name, FIFORequestChannel::CLIENT_SIDE);
 		active_chan = new_chan;
+		delete[] buf;
 	}
 
 	/** 4.2 Requesting Data Points */
 	if (p >= 0 && t >= 0) {
-		char buf[MAX_MESSAGE];
+		char* buf = new char[buffercapacity];
 		datamsg x(p, t, e);
 
 		memcpy(buf, &x, sizeof(datamsg));
@@ -82,18 +88,20 @@ int main (int argc, char *argv[]) {
 		double reply;
 		active_chan->cread(&reply, sizeof(double)); //answer
 		cout << "For person " << p << ", at time " << t << ", the value of ecg " << e << " is " << reply << endl;
+		delete[] buf;
 	} else if (p >= 0) {
 		string outfile = "received/x" + to_string(p) + ".csv";
 		ofstream ofs(outfile.c_str());
 		if (!ofs.is_open()) {
-			cout << "Uh oh!!!" << endl;
+			cout << "Could not open " << outfile << endl;
+			return 1;
 		}
 
 		// Obtain the first 1000 data points
 		for (double i = 0; i < 1000; i++) {
 			double time = i * 0.004;
-			char buf_ecg1[MAX_MESSAGE];
-			char buf_ecg2[MAX_MESSAGE];
+			char* buf_ecg1 = new char[buffercapacity];
+			char* buf_ecg2 = new char[buffercapacity];
 
 			// Data point for ecg 1:
 			datamsg x1(p, time, 1);
@@ -112,6 +120,9 @@ int main (int argc, char *argv[]) {
 			active_chan->cread(&val2, sizeof(double)); 
 
 			ofs << time << "," << val1 << "," << val2 << endl;
+			
+			delete[] buf_ecg1;
+			delete[] buf_ecg2;
 		}
 
 		ofs.close();
@@ -140,12 +151,13 @@ int main (int argc, char *argv[]) {
 
 		ofstream ofs2(outputfile.c_str());
 		if (!ofs2.is_open()) {
-			cout << "Uh oh" << endl;
+			cout << "Could not open " << outputfile << endl;
+			return 1;
 		}
 
 		// Obtain contents of file
-		for (__int64_t offset = 0; offset < filelen; offset += MAX_MESSAGE) {
-			int length = MAX_MESSAGE;
+		for (__int64_t offset = 0; offset < filelen; offset += buffercapacity) {
+			int length = buffercapacity;
 			if (offset + length > filelen) length = filelen - offset;
 			
 			// Create filemsg object
@@ -178,8 +190,6 @@ int main (int argc, char *argv[]) {
     MESSAGE_TYPE m = QUIT_MSG;
 	cout << "Closing Channel: " << active_chan->name() << endl;
     active_chan->cwrite(&m, sizeof(MESSAGE_TYPE));
-	
-	if (c) {
-		delete active_chan;
-	}
+
+	if (c) { delete active_chan; }
 }
